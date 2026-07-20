@@ -1,0 +1,5 @@
+# Operations Note
+Ref: routine_note_33
+
+Routine operational note 33: no exceptions.
+

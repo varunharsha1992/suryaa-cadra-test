@@ -1,0 +1,5 @@
+# Internal Note
+Ref: sop_policy_01
+
+SOP: Report sales in cases; 1 case = 24 eaches for biscuits, 12 for detergent. Returns are logged separately and must not be netted into primary sales. Escalate stockouts >3 days.
+

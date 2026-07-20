@@ -1,0 +1,25 @@
+distributor_id,distributor_name,territory
+DEL-D1,Delhi Distributors 1,Delhi
+DEL-D2,Delhi Distributors 2,Delhi
+LUC-D1,Lucknow Distributors 1,Lucknow
+LUC-D2,Lucknow Distributors 2,Lucknow
+JAI-D1,Jaipur Distributors 1,Jaipur
+JAI-D2,Jaipur Distributors 2,Jaipur
+MUM-D1,Mumbai Distributors 1,Mumbai
+MUM-D2,Mumbai Distributors 2,Mumbai
+PUN-D1,Pune Distributors 1,Pune
+PUN-D2,Pune Distributors 2,Pune
+AHM-D1,Ahmedabad Distributors 1,Ahmedabad
+AHM-D2,Ahmedabad Distributors 2,Ahmedabad
+BEN-D1,Bengaluru Distributors 1,Bengaluru
+BEN-D2,Bengaluru Distributors 2,Bengaluru
+CHE-D1,Chennai Distributors 1,Chennai
+CHE-D2,Chennai Distributors 2,Chennai
+HYD-D1,Hyderabad Distributors 1,Hyderabad
+HYD-D2,Hyderabad Distributors 2,Hyderabad
+KOL-D1,Kolkata Distributors 1,Kolkata
+KOL-D2,Kolkata Distributors 2,Kolkata
+PAT-D1,Patna Distributors 1,Patna
+PAT-D2,Patna Distributors 2,Patna
+GUW-D1,Guwahati Distributors 1,Guwahati
+GUW-D2,Guwahati Distributors 2,Guwahati
