@@ -174,6 +174,84 @@ If no supporting evidence is found, the system returns `status: ABSTAINED` rathe
 
 ---
 
+---
+
+## Section E — B2B SaaS Churn-Prediction Pipeline (`src/solution.py`)
+
+### Problem
+The retention team at a B2B SaaS company acts reactively — after cancellation. They need a forward-looking churn-risk score per account to intervene early (check-in call, discount, feature walkthrough).
+
+### Architecture
+
+```
+Raw Data (synthetic)
+    │
+    ▼
+┌──────────────────────┐
+│ Data Generation      │  2 500 accounts × 12 months = 30 000 rows
+│                      │  Churn causally driven by declining usage
+│                      │  (feature adoption, sessions, DAU)
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Feature Engineering  │  65 features: lags, rolling 3-month avgs,
+│                      │  trends, max-decline, ratio features
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Model Training       │  XGBoost, train until month 9,
+│ (XGBoost)            │  test on months 10-12
+│                      │  scale_pos_weight handles imbalance
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Evaluation           │  ROC-AUC, precision, recall, F1,
+│                      │  confusion matrix, feature importance,
+│                      │  optimal threshold via PR curve
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Risk Scoring         │  Per-account churn probability → risk tier
+│                      │  (Low < 15% / Medium < 40% / High 40%+)
+│                      │  Top-3 drivers per high-risk account
+└──────────────────────┘
+```
+
+### Data Design
+- **Synthetic data generation** (no external dataset used): 2 500 accounts across 6 industries (fintech, healthtech, ecommerce, saas, logistics, edtech) and 3 plan tiers (starter/growth/enterprise).
+- **Churn is causal**: accounts that will churn experience a gradual usage decline starting 2-3 months prior. The decline is driven by `churn_severity` × `months_declining`, producing realistic decay in DAU, sessions, feature adoption, and API calls.
+- **Label**: `churned = 1` in the month AFTER the usage quality drops below 50% (to simulate the customer actually cancelling after a period of disengagement).
+
+### Feature Engineering
+| Category | Features |
+|---|---|
+| **Lags (t-1, t-2, t-3)** | DAU, sessions, feature adoption, API calls, MRR, tickets, satisfaction |
+| **Rolling 3-month avg** | Same 7 metrics |
+| **Trend (3-month slope)** | Same 7 metrics |
+| **Max decline (3-month drawdown)** | Same 7 metrics |
+| **Ratio** | API per user, tickets per user, revenue per user, feature-to-ticket ratio |
+| **Time** | month_sin, month_cos |
+
+### Model
+- **Algorithm**: XGBoost (400 trees, max_depth=5, lr=0.05, colsample=0.8, subsample=0.8)
+- **Imbalance handling**: `scale_pos_weight` = inverse of positive-ratio
+- **Time-based split**: Months 1-9 train, 10-12 test (prevents lookahead)
+- **Target**: `churned in month t+1` (shift(-1))
+
+### Risk Scoring
+- Raw probability from `predict_proba` → binned into Low / Medium / High tiers
+- Top-5 account-level drivers via feature-importance-weighted contribution (proxy SHAP)
+- Output ready for CRM upload or alerting
+
+### Trade-Offs & Risks
+| Risk | Mitigation |
+|---|---|
+| **Synthetic data may not reflect real patterns** | Generation uses realistic tier/industry churn-rate multipliers; causal structure mirrors known SaaS churn mechanics (usage decline precedes cancellation) |
+| **Class imbalance (2.2% churn rate)** | scale_pos_weight + threshold tuning via PR curve |
+| **Lookahead leakage** | Time-based split (no random shuffle); lags prevent forward-looking features |
+| **Feature importance ≠ causal explanation** | Drivers are suggestive; retention team should treat as signals, not diagnoses |
+| **Model retraining** | Pipeline is self-contained; monthly retraining would require appending new data to the generation step |
+
 ## Chat Transcripts
 
 ### Approach-Phase AI Chat Transcript
