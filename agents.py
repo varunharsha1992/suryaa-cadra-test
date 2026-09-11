@@ -1,3 +1,5 @@
+import json
+import os
 import re
 import pandas as pd
 import numpy as np
@@ -272,3 +274,55 @@ def compute_confidence(intent, query_result, reason_findings):
     if intent == "WHAT_TO_DO":
         return 0.70
     return 0.0
+
+
+class LLMFallback:
+    def __init__(self, schema_description, api_key=None, model=None, base_url=None):
+        self.schema = schema_description
+        self.api_key = api_key or os.environ.get("LLM_API_KEY", "")
+        self.model = model or os.environ.get("LLM_MODEL", "gpt-4o-mini")
+        raw_url = base_url or os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
+        if raw_url and not raw_url.startswith(("http://", "https://")):
+            raw_url = "http://" + raw_url
+        self.base_url = raw_url
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            from openai import OpenAI
+            self._client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        return self._client
+
+    def build_prompt(self, question, context=None):
+        schema_str = json.dumps(self.schema, indent=2)
+        return (
+            "You are a data analyst assistant for Suryaa Consumer Products Ltd. "
+            "You have access to the following data schema and should answer based ONLY on this data.\n\n"
+            f"Schema:\n{schema_str}\n\n"
+            "Rules:\n"
+            "- Answer concisely using only the data described above.\n"
+            "- Do NOT invent metrics, tables, or columns that are not listed.\n"
+            "- If the question cannot be answered from the available schema and context, say so clearly.\n"
+            "- Use India-specific formatting for currency (INR with commas).\n"
+            "- Be specific — mention territories, brands, and time periods where possible.\n"
+            "- Keep the answer under 3 paragraphs.\n"
+        )
+
+    def answer(self, question, context=None):
+        if not self.api_key:
+            return None
+        try:
+            prompt = self.build_prompt(question, context)
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": question},
+                ],
+                temperature=0.1,
+                max_tokens=500,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception:
+            return None

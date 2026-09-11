@@ -13,8 +13,13 @@ tests = [
     ("Q6: False premise", "What were sales of ProductXYZ in 2024?"),
 ]
 
+headers = {}
+token = __import__("os").environ.get("auth_token", "")
+if token:
+    headers["X-Cadra-Eval-Key"] = token
+
 for name, q in tests:
-    r = client.post("/ask", json={"question": q})
+    r = client.post("/ask", json={"question": q}, headers=headers)
     d = r.json()
     ans = d["answer"][:180].replace("\n", " | ").replace("  ", " ")
     print(f"{name}: intent={d['intent']} status={d['status']} conf={d['confidence']} cit={len(d['citations'])}")

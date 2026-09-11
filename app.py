@@ -1,12 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional
+import os
 import re
 import pandas as pd
 
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+
 from data_loader import load_data, get_schema_description
-from agents import IntentClassifier, QueryEngine, Reasoner, ResponseBuilder, compute_confidence
+from agents import IntentClassifier, QueryEngine, Reasoner, ResponseBuilder, compute_confidence, LLMFallback
 
 app = FastAPI(title="Suryaa Consumer Products - AI Assistant", version="1.0.0")
 
@@ -23,6 +27,8 @@ classifier = IntentClassifier()
 query_engine = QueryEngine(data)
 reasoner = Reasoner(data, query_engine)
 response_builder = ResponseBuilder()
+schema_desc = get_schema_description(data)
+llm_fallback = LLMFallback(schema_desc)
 
 
 class AskRequest(BaseModel):
@@ -149,8 +155,16 @@ def is_question_unanswerable(question, parsed):
     return False
 
 
+def verify_auth(x_cadra_eval_key: Optional[str] = Header(None)):
+    expected = os.environ.get("auth_token", "")
+    if not expected:
+        return
+    if x_cadra_eval_key != expected:
+        raise HTTPException(status_code=401, detail=f"Invalid auth token: got '{x_cadra_eval_key}', expected '{expected[:8]}...'")
+
+
 @app.post("/ask", response_model=AskResponse)
-def ask(request: AskRequest):
+def ask(request: AskRequest, _auth=Depends(verify_auth)):
     question = request.question.strip()
     if not question:
         return AskResponse(
@@ -162,6 +176,15 @@ def ask(request: AskRequest):
         )
 
     if is_out_of_domain(question):
+        llm_answer = llm_fallback.answer(question)
+        if llm_answer:
+            return AskResponse(
+                answer=llm_answer,
+                intent="LLM_FALLBACK",
+                citations=[],
+                confidence=0.5,
+                status="LLM_FALLBACK"
+            )
         return AskResponse(
             answer="This question is outside the scope of my available data. I can only answer questions about Suryaa Consumer Products' sales, targets, products, promotions, and stockouts.",
             intent="OUT_OF_DOMAIN",
@@ -234,6 +257,17 @@ def ask(request: AskRequest):
         answer_text = "This question is outside the scope of my available data."
         status = "ABSTAINED"
         confidence = 0.0
+
+    if status == "ABSTAINED" and confidence < 0.5:
+        llm_answer = llm_fallback.answer(question)
+        if llm_answer:
+            return AskResponse(
+                answer=llm_answer,
+                intent=intent if intent != "OUT_OF_DOMAIN" else "LLM_FALLBACK",
+                citations=citations,
+                confidence=0.5,
+                status="LLM_FALLBACK"
+            )
 
     return AskResponse(
         answer=answer_text,
